@@ -1,8 +1,12 @@
 # chipper
 
-I'm an app. Or maybe I'm a library? I haven't decided yet. 
+DSL for solving problems in The Elements of Computing Systems.
 
-The choice is up to you!
+(defchip NAME [INPUTS] [OUTPUTS] (PARTS)) ;; maps?
+
+- NAND is a primitive
+- Rest are defined by you as new primitives?
+- Close mapping to Jack (?) HDL in TECS book.
 
 ## Usage
 
