@@ -1,87 +1,88 @@
 (ns chipper.core
-  (:use [clojure.contrib.combinatorics :only (selections)]))
+  (:use [clojure.contrib.combinatorics :only (selections)])
+  (:use [clojure.pprint :only (pprint)])
+  (:require [clojure.tools.macro :as macro]))
 
 (defn bool-space
   "Generates every possible boolean n-tuple."
   [n]
   (selections [0 1] n))
 
+(defn kws->syms
+  "Turns [:a :b] into [a b]"
+  [coll]
+  (vec (map #(symbol (name %)) coll)))
+
+(defn- syms->kws
+  "Replaces symbols with keywords in a form"
+  [form]
+  (let [outs (nth form 2)
+        kwouts (vec (map keyword outs))]
+    (replace {outs kwouts} form)))
+
+(defn- replace-keys
+  "Replaces keys in coll with corresponding
+       values from map"
+  [m coll]
+  (replace (select-keys m coll) coll))
+
+(defn- wrap-key [[_ _ bindings]]
+  {:keys (kws->syms bindings)})
+
+(defn- collect-binds [forms]
+  (letfn [(collect-bind [acc form]
+            (conj acc
+                  (wrap-key form)
+                  (syms->kws form)))]
+    (reduce collect-bind
+            [] forms)))
+
+(defn- thread-form [forms]
+  (let [lastform (last forms)
+        bindings (collect-binds (butlast forms))]
+    `(let ~bindings ~lastform)))
+
+(defn truth-table
+  "TODO Should generate a truth table for a logical function."
+  [f]
+  (map #(f {:in %}) (flatten (bool-space 1))))
+
 (defmacro defchip
-  "Creates a function that returns a bool (map)"
-  [fname m & body]
-  `(defn ~fname [& {:keys ~m :as m#}] ~@body))
+  "Creates a logic gate which takes a vector of inputs
+   and a vector of outputs."
+  [fname & args]
+  (let [[fname args] (macro/name-with-attributes fname args)
+        [ins outs & body] args
+        params (vector ins outs)]
+    `(defn ~fname ~params ~(thread-form body))))
 
-;; primitive chip
-(defchip nand* [a b out]
-  (if (= (+ a b) 2) 0 1))
+(defmacro >>
+  "Threads chip bindings through forms"
+  [& forms]
+  (thread-form forms))
 
-;; TESTING
-;; (def foo (bool-space (- (args chip) 1))) => ((0) (1)) for not*
-;; (map foo (not* :in %))
-;; how spread out over several arguments?
-;; cmp files
+;; CHIPS
 
-;; testing works for not
-(map #(not* :in %)
-     (flatten (bool-space 1)))
-;; => (1 0) with (0 1) as input
-;; want this though:
-;; in out
-;; 0  1
-;; 1  0
-;;
-;; losing info, (not* :in 0) => 1, should be {:out 1}?
-;; ARGH SYNTAX MAKES NO SENSE
-;; (not {:in 0})
-;; anything else is a SHORTHAND, maps are much easier to work with.
+(defchip nand* [a b] [out]
+  (if (= (+ a b) 2) {out 0} {out 1}))
 
-(defchip not* [in out]
-  (nand* :a in :b in))
+(defchip not* [in] [out]
+  (nand* [in in] [out]))
 
-(defchip and* [a b out]
-  (nand* :a a :b b))
+(defchip and* [a b] [out]
+  (nand* [a b] [w])
+  (not* [w] [out]))
 
-;; print truth-table
+;; TESTS
 
-(defchip or* [a b out]
-  (not* :in a :out nota)
-  (not* :in b :out notb)
-  (and* :a nota :b notb :out w)
-  (not* :in w)) ;; or :out out to visualize it explicitly
+(and* [1 1] [:foo])
+;;(and* [0 0] [out]) ;; no work
+;;(and* [0 0]) ;; no work
 
-(comment (defchip AND
-           "AND gate: out = 1 if a=b=1, 0 otherwise."
-           [:a :b :out>]
-           (NAND [:a :b :out> w])
-           ;; bind return value to w, and use it below?
-           (NOT [:a w :out> out])))
-
-;; NOTES
-;; should have a very intuitive way of specifying m-way n-bit
-;; Few primitives and some interactions
-;; Reason about CHIPS and PINS
-;; Make all of these composable
-;; how do we make a nand gate from scratch?
-;; can we leverage core.logic somehow? "this must be the case" 
-;; eg lein, defproject:
-;; [project-name version & {:as args}] (last part are args?)
-;; (AND {:a 1 :b 1} => {:out 1}) (support for vectors too)
-;; Principles?
-;; merge somehow?
-;; keywords are pins
-;; distinguish output pins with >
-;; bind variables to output pins
-;; atom to keep track of pin state?
+;; more explicit use of threading in defchip
+;; possible use threading macro (>> & forms)
+;; replace ~(thread-form body) with ~@body then
+;; as threading is done with the >> macro
 
 ;; TODO
-;; - map fn to (bool-space 2) to generate chiptests
-;; - pprint truth tables (a b | out // ...)
-;; - input and output maps as args
-;; - defchip macro, name, input-map, output map | seq of pa}rts
-;; - change keys to be specific
-;; - add docstring? see defpartial for that
-
-;; LATER
-;; - concatenate truth tables with pins (~lvars?)
-;; - import .cmp
-;; - define type / leverage builtin bools? (bool arrays?)))
+;; truth table
