@@ -2,6 +2,8 @@
   (:use clojure.test
         chipper.core))
 
-(deftest a-test
-  (testing "FIXME, I fail."
-    (is (= 0 1))))
+(deftest and-test
+  (is (= (and* [0 1] [:foo])
+         {:foo 0})))
+
+(run-tests)
