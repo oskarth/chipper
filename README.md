@@ -39,7 +39,6 @@ You can define your own logical functions in a similar manner.
 - BUG: Multiple outputs aren't returned
 - Truth-table printer
 - Implement more basic chips
-- Decide on name for chips / circuits / logical gates
 - Support for n-bit m-way functions
 - Make an ALU (arithmetic logic unit)
 

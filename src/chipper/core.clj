@@ -1,5 +1,4 @@
 (ns chipper.core
-  (:use [clojure.pprint :only (pprint)])
   (:require [clojure.tools.macro :as macro]))
 
 ;; todo
@@ -13,7 +12,7 @@
         bindings (collect-binds (butlast forms))]
     `(let ~bindings ~lastform)))
 
-(defmacro defchip
+(defmacro defgate
   "Creates a logic gate which takes a vector of inputs
    and a vector of outputs."
   [fname & args]
