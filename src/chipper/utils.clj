@@ -27,7 +27,7 @@
 (defn- wrap-key [[_ _ bindings]]
   {:keys (kws->syms bindings)})
 
-(defn- collect-binds [forms]
+(defn collect-binds [forms]
   (letfn [(collect-bind [acc form]
             (conj acc
                   (wrap-key form)
