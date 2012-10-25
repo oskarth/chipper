@@ -2,17 +2,25 @@
   (:use midje.sweet))
 
 ;; DSL Lessons Learned
+;;------------------------------------------------------------------------------
 ;; 1) don't try to be too clever - type it out first.
 ;; 2) program with values for feedback.
 ;; 3) write tests.
 ;; 4) unify and find patterns.
+;; 5) The first rule of macros: don't write macros.
 
-;; ... so, had a fn which used smt like exp instead of form, and that
-;; exp was already bound - how catch that next time? not in scope
-;; warning, clear ns easily?
+;; Debugging LL
+;;------------------------------------------------------------------------------
+;; Had a fn which used "exp" instead of form (which was a var), but
+;; exp was bound at the repl - how catch this leaky scope next time?
 
-;; utils
+;; SPEC
+;;------------------------------------------------------------------------------
+;; Grammar: (defgate ...) where ... is gate & :ins => & :outs
 
+
+;; util functions
+;;------------------------------------------------------------------------------
 (defn- kws->syms
   "Turns [:a :b] into [a b]"
   [coll]
@@ -41,10 +49,10 @@
 
 
 
-;; parsing stuff - ugly atm
-;; for example, this constant for [n (range (count list))] is stupid,
-;; should just be for~ [n (count list)]
-;;--------------------------------------------------------------------------------
+;; parsing multiple forms into one
+;; todo: general deuglify
+;; todo: for [n (range (count list))] should be foo [n (count list)]
+;;------------------------------------------------------------------------------
 (defn- get-fn-pos
   "helper to get indicies of fn-symbols
   '(not* :a => :b not* :a => :b)) => (0 4), which are the positions of fns"
@@ -73,9 +81,11 @@
     (for [k (range (count lx))]
       (take (nth lx k)
             (drop (nth ly k) form)))))
-;;-----------------------------------------------------------------------
+
+
 
 ;; gates, standard form
+;;------------------------------------------------------------------------------
 (defn nand* [a b]
   (let [out (if (= (+ a b) 2) 0 1)]
     out))
@@ -117,6 +127,14 @@
         out [a b]]
     out))
 
+
+
+;; MACROS
+;; test gensyms?
+;; out variable is weird, wait shouldn't that come
+;; frm somewhere rather than being implicit
+;; :FOO is (nand* in in), which is the second exp...
+;;------------------------------------------------------------------------------
 (defmacro defgate [& form]
   (let [exp# (make-expressions form)
         fform# (first exp#)
@@ -125,17 +143,12 @@
         outs# (make-outs fform#)]
     `(defn ~fname# ~args# (let [out# :FOO] out#))))
 
-;; remember the first rule of macros: don't write macros.
-;; :FOO is (nand* in in), which is the second exp...
-;; test gensyms?
-;; Grammar: (defgate ...) where ... is gate & :ins => & :outs
-
-;;; current status: out variable is weird, wait shouldn't that come
-;;; frm somewhere rather than being implicit
+;; should get some expression ex
+;; not* :in => :out nand* :in :in => :out
 
 
-;; tests
-
+;; tests for macros
+;;------------------------------------------------------------------------------
 ;; is this right? not 100% sure, special behavior for nands?
 (fact (defgate nand* :a :b => :out :foo (if (= (+ a b) 2) 0 1))
       =expands-to=> (clojure.core/defn nand* [a b]
@@ -145,18 +158,14 @@
       =expands-to=> (clojure.core/defn not* [in]
                       (clojure.core/let [out (nand* in in)] out)))
 
-;;#_(defgate dmux* :in :sel => :a :b
+;;(defgate dmux* :in :sel => :a :b
 ;;  not* :sel => :nsel
 ;;  and* :in :nsel => :a
 ;;  and* :in :sel => :b)
 
-;;#_(defn nand* [a b]
-;;    (let [out (if (= (+ a b) 2) 0 1)]
-;;      out))
 
-;;(defgate nand* :a :b => :out ;; special case...
-;;    (if (= (+ a b) 2) 0 1))
-
+;; tests fof gates
+;;------------------------------------------------------------------------------
 (facts
  (nand* 0 0) => 1
  (nand* 0 1) => 1
