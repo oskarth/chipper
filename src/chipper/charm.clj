@@ -17,6 +17,44 @@
 ;; SPEC
 ;;------------------------------------------------------------------------------
 ;; Grammar: (defgate ...) where ... is gate & :ins => & :outs
+;; :a :b :c => :foo :bar
+
+;; stuff
+;;------------------------------------------------------------------------------
+;; lists, recursive think, first and rest, base case basics
+;; ~compiler, traverse all, pull out nice info, topological sort~ to
+;; get most primitive, reduce into more primitive forms
+;; books, macro like writing a compiler, defining instrc set, vm
+;; turtles, books (tree chapters)
+;; start with low rigid thing, then syntax, then write compiler to
+;; travel
+;; start by lispifying with s-expressions, jsut tree
+;; translate .hdl files straight to s-exp without thinking about
+;; macros, only later
+
+;; truth table
+;; destruct name n rest
+;; split with to get ins and rest, then chop off to get outs
+
+
+;; nand* a b => out
+;; bool-space 2 (00 01 10 11)
+;; (meta nand*) => a b | out
+
+;; add ins and outs to meta
+
+;; fn that takes a fn, an #ins #outs expected, invok permutations
+;; use meta to find out # args expects, if know args then ok, easier
+;; (with-tt 'nand*) ;; => symbol meta name
+;; a b | out
+;; 0 0 | 1
+;; .......
+;; 1 1 | 0
+
+;; just boilerplate then remove
+;; list manipulations, recursie solutions
+
+
 
 
 ;; util functions
@@ -31,6 +69,12 @@
   [x]
   (and (symbol? x)
        (not= (name x) "=>")))
+
+(defn- arrow?
+  "pred returns true if sym is =>"
+  [x]
+  (and (symbol? x)
+       (= (name x) "=>")))
 
 (defn- get-fnname [form]
   (first form))
@@ -50,38 +94,15 @@
 
 
 ;; parsing multiple forms into one
-;; todo: general deuglify
-;; todo: for [n (range (count list))] should be foo [n (count list)]
 ;;------------------------------------------------------------------------------
-(defn- get-fn-pos
-  "helper to get indicies of fn-symbols
-  '(not* :a => :b not* :a => :b)) => (0 4), which are the positions of fns"
+#_(defn make-expressions
+  "turns (not* :in => :out nand* :in :in => :out)                                                                                                                                                  into ((not* [in] [out]) (nand* [in in] [out]))"
   [form]
-  (for [n (range (count form)) :when (fn-sym? (nth form n))]
-    n))
-
-(defn- pair-delta
-  "calculate delta between two numbers in a list
-   (0 6 10 15) => (6 4 5)"
-  [li]
-  (for [k (range (count li)) :when (> k 0)]
-    (- (nth li k) (nth li (- k 1)))))
-
-(defn- without-last
-  "removes last index"
-  [li]
-  (take (- (count li) 1) li))
-
-(defn make-expressions
-  "creates expressions from unstructured list"
-  [form]
-  (let [fn-pos (get-fn-pos form)
-        lx (pair-delta fn-pos)
-        ly (without-last fn-pos)]
-    (for [k (range (count lx))]
-      (take (nth lx k)
-            (drop (nth ly k) form)))))
-
+  (if (empty? form) nil
+      (let [id (first form)
+            [ins [arrow & rest1]] (split-with (complement arrow?) (rest form))
+            [outs remainder] (split-with (complement fn-sym?) rest1)]
+       (cons (list id (kws->syms ins) (kws->syms outs)) (make-expressions remainder)))))
 
 
 ;; gates, standard form
@@ -128,45 +149,46 @@
     out))
 
 
-
-;; MACROS
-;; test gensyms?
-;; out variable is weird, wait shouldn't that come
-;; frm somewhere rather than being implicit
-;; :FOO is (nand* in in), which is the second exp...
+;; Macro its helpers
+;; diff macro for nandgate, defprimitive
 ;;------------------------------------------------------------------------------
-(defmacro defgate [& form]
-  (let [exp# (make-expressions form)
-        fform# (first exp#)
-        fname# (get-fnname fform#)
-        args# (make-args fform#)
-        outs# (make-outs fform#)]
-    `(defn ~fname# ~args# (let [out# :FOO] out#))))
+(defmacro defgate [gate ins _ outs & forms]
+  `(defn ~gate ~ins
+     ~(expand-defgate forms outs)))
 
-;; should get some expression ex
-;; not* :in => :out nand* :in :in => :out
+(defn expand-defgate [forms outs]
+  (if (empty? forms)
+    outs
+    (let [[[name & body] & rest] forms
+          [args [_ & outputs]] (split-with (complement arrow?) body)]
+      `(let [~(vec outputs) (~name ~@args)]
+         (expand-defgate rest outs)))))
+
 
 
 ;; tests for macros
 ;;------------------------------------------------------------------------------
+;; circumvent ugly midje meta data addition with =expand-to=>
+;; otherwise expands to form ... :postion (midje....)
+#_(fact (macroexpand-1 '(defgate not* :in => :out nand* :in :in => :out))
+      => '(not* :in => :out nand* :in :in => :out))
+
 ;; is this right? not 100% sure, special behavior for nands?
-(fact (defgate nand* :a :b => :out :foo (if (= (+ a b) 2) 0 1))
-      =expands-to=> (clojure.core/defn nand* [a b]
-                      (clojure.core/let [out (if (= (+ a b) 2) 0 1)] out)))
+(fact (macroexpand-1 '(defgate nand* :a :b => :out :foo (if (= (+ a b) 2) 0 1))
+                     => '(clojure.core/defn nand* [a b]
+                           (clojure.core/let [out (if (= (+ a b) 2) 0 1)] out))))
 
-(fact (defgate not* :in => :out nand* :in :in => :out)
-      =expands-to=> (clojure.core/defn not* [in]
-                      (clojure.core/let [out (nand* in in)] out)))
+(fact (macroexpand-1 '(defgate not* :in => :out nand* :in :in => :out)
+                     => '(clojure.core/defn not* [in]
+                           (clojure.core/let [out (nand* in in)] out))))
 
-;;(defgate dmux* :in :sel => :a :b
-;;  not* :sel => :nsel
-;;  and* :in :nsel => :a
-;;  and* :in :sel => :b)
+;; (defgate dmux* [in sel => a b]
+;;   (not* sel => nsel)
+;;   (and* in nsel => a)
+;;   (and* in sel => b))
 
-
-;; tests fof gates
-;;------------------------------------------------------------------------------
-(facts
+;; todo: refactor with truth-table?
+(facts "logical gates"
  (nand* 0 0) => 1
  (nand* 0 1) => 1
  (nand* 1 0) => 1
