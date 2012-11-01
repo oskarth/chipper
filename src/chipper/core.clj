@@ -1,22 +1,26 @@
 (ns chipper.core
-  (:require [clojure.tools.macro :as macro]))
+  (:use chipper.utils))
 
-;; todo
-(defn truth-table
-  "Generate a truth table for a logical function."
-  [f]
-  (map #(f {:in %}) (flatten (bool-space 1))))
+(defn expand-defgate
+  "Recursive function that expands forms into regular functions.
+   The outs argument is used to collect the desired output pins."
+  [forms outs]
+  (if (empty? forms)
+    outs
+    (let [[[name & body] & rest] forms
+          [[args] [_ & [outputs]]] (split-with (complement arrow?) body)]
+      `(let [~(vec outputs) (~name ~@args)]
+         ~(expand-defgate rest outs)))))
 
-(defn- thread-form [forms]
-  (let [lastform (last forms)
-        bindings (collect-binds (butlast forms))]
-    `(let ~bindings ~lastform)))
+(defmacro defprimitive
+  "Defines a primitive gate in terms of a regular Clojure function.
+   Currently only used to define a nand gate."
+  [gate ins _ outs body]
+  `(defn ~gate ~ins ~body))
 
 (defmacro defgate
-  "Creates a logic gate which takes a vector of inputs
-   and a vector of outputs."
-  [fname & args]
-  (let [[fname args] (macro/name-with-attributes fname args)
-        [ins outs & body] args
-        params (vector ins outs)]
-    `(defn ~fname ~params ~(thread-form body))))
+  "Defines a logical gate with input and output pins, and a implementation
+   expressed in terms of other logical gates."
+  [gate ins _ outs & forms]
+  `(defn ~gate ~ins
+     ~(expand-defgate forms outs)))

@@ -1,36 +1,33 @@
-(ns chipper.utils
-  (:use [clojure.contrib.combinatorics :only (selections)]))
-
-(defn bool-space
-  "Generates every possible boolean n-tuple."
-  [n]
-  (selections [0 1] n))
+(ns chipper.utils)
 
 (defn kws->syms
   "Turns [:a :b] into [a b]"
   [coll]
   (vec (map #(symbol (name %)) coll)))
 
-(defn- syms->kws
-  "Replaces symbols with keywords in a form"
+(defn fn-sym?
+  "predicate to check if x is sym and not =>"
+  [x]
+  (and (symbol? x)
+       (not= (name x) "=>")))
+
+(defn arrow?
+  "predicate returns true if sym is =>"
+  [x]
+  (and (symbol? x)
+       (= (name x) "=>")))
+
+(defn- get-fnname
+  "gets the function name from a form"
   [form]
-  (let [outs (nth form 2)
-        kwouts (vec (map keyword outs))]
-    (replace {outs kwouts} form)))
+  (first form))
 
-(defn- replace-keys
-  "Replaces keys in coll with corresponding
-       values from map"
-  [m coll]
-  (replace (select-keys m coll) coll))
+(defn get-kw-ins
+  "get the input pins from a form"
+  [form]
+  (take-while keyword? (rest form)))
 
-(defn- wrap-key [[_ _ bindings]]
-  {:keys (kws->syms bindings)})
-
-(defn collect-binds [forms]
-  (letfn [(collect-bind [acc form]
-            (conj acc
-                  (wrap-key form)
-                  (syms->kws form)))]
-    (reduce collect-bind
-            [] forms)))
+(defn get-kw-outs
+  "get the output pins from a form"
+  [form]
+  (rest (drop-while keyword? (drop-while fn-sym? form))))

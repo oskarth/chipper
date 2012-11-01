@@ -1,21 +1,15 @@
-(ns chipper.core-test
-  (:use clojure.test
-        chipper.core))
+(ns chipper.core_test
+  (:use chipper.core
+        midje.sweet))
 
-(defn- name-attr
-  "pulls out meta info about function name from a form"
-  [form]
-  (:name (meta form)))
+;; we should prolly test our beloved core.
 
-(defn- arglists
-  "pulls out meta info about args from a form"
-  [form]
-  (first (:arglists (meta form))))
+(fact "expand-defgate base case"
+      (expand-defgate nil '[out])
+      => '[out])
 
-(deftest defgate-test
-  "true if defgate renders correct form (name and arglists)"
-  (let [form (defgate gate [foo bar] [bax quux])]
-    (is (= 'gate
-           (name-attr form)))
-    (is (= '[[foo bar] [bax quux]]
-           (arglists form)))))
+(fact "expand-defgate"
+      (expand-defgate '((not* [w] => [out])) '[out])
+      =>
+      '(clojure.core/let [[out] (not* w)]
+                        (chipper.core/expand-defgate nil [out])))
